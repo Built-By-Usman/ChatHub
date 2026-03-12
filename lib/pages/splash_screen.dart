@@ -1,10 +1,10 @@
-import 'package:ChatHub/splash_screen_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 import '../../../core/constant/app_color.dart';
 import '../../../core/constant/app_image.dart';
 import '../../../core/constant/app_size.dart';
+import '../controller/splash_screen_controller.dart';
 import '../widgets/spacer/spacer.dart';
 
 class SplashScreen extends StatelessWidget {

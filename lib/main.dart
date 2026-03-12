@@ -1,29 +1,35 @@
-
-import 'package:ChatHub/core/constant/app_route.dart';
-import 'package:ChatHub/core/constant/app_size.dart';
 import 'package:ChatHub/routes.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get_navigation/src/root/get_material_app.dart';
-import 'package:hive_flutter/hive_flutter.dart';
-
+import 'package:get/get.dart';
 import 'core/constant/app_color.dart';
+import 'core/constant/app_route.dart';
+import 'core/constant/app_size.dart';
 import 'core/constant/app_string.dart';
-import 'note_model.dart';
+import 'core/functions/presence_controller.dart';
 
+// Handle background messages
+// Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+//   await Firebase.initializeApp();
+//   NotificationService.showNotification(message);
+// }
 
-void main() async{
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Hive.initFlutter();
-  Hive.registerAdapter(NoteModelAdapter());
-  await Hive.openBox<NoteModel>('notes');
-  
+  await Firebase.initializeApp();
 
-  
+  // FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-  runApp(
-  MyApp()
-  );
+  // await NotificationService.init(); // Initialize notifications
+  if (FirebaseAuth.instance.currentUser != null) {
+    await PresenceService().init();
+  }
+
+
+  runApp(MyApp());
 }
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 

@@ -3,21 +3,20 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class UserModel {
   final String userId;
   final String phoneNumber;
-  final String? name;
-  final String? about;
-  final String? photoUrl;
+  String? name;
+  String? about;
+  String? photoUrl;
   final bool? isActive;
-
   final Timestamp? createdAt;
 
   UserModel({
     required this.userId,
     required this.phoneNumber,
     this.name,
+    this.about,
     this.photoUrl,
-    this.createdAt,
     this.isActive,
-    this.about
+    this.createdAt,
   });
 
   Map<String, dynamic> toJson() {
@@ -25,22 +24,22 @@ class UserModel {
       'user_id': userId,
       'phone_number': phoneNumber,
       'name': name,
-      'photo_url': photoUrl,
       'about': about,
-      'is_active':true,
-      'created_at': FieldValue.serverTimestamp(),
+      'photo_url': photoUrl,
+      'is_active': isActive ?? true,
+      'created_at': createdAt ?? FieldValue.serverTimestamp(),
     };
   }
 
   factory UserModel.fromJson(Map<String, dynamic> map) {
     return UserModel(
-      userId: map['user_id'],
-      photoUrl: map['photo_url'],
-      name: map['name'],
-      about:map['about'],
-      phoneNumber: map['phone_number'],
-      isActive: map['is_active'],
-      createdAt: map['created_at'],
+      userId: map['user_id'] as String,
+      phoneNumber: map['phone_number'] as String,
+      name: map['name'] as String?,
+      about: map['about'] as String?,
+      photoUrl: map['photo_url'] as String?,
+      isActive: map['is_active'] as bool?,
+      createdAt: map['created_at'] as Timestamp?,
     );
   }
 }

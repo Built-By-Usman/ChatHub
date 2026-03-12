@@ -1,11 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+enum MessageType { text, image, voice, video }
+
 class MessageModel {
   final String conversationId;
   final String senderId;
   final String receiverId;
   final String? content;
   final String? mediaUrl;
+  final MessageType type;
   final DateTime timestamp;
   final bool isSeen;
 
@@ -15,10 +18,10 @@ class MessageModel {
     required this.receiverId,
     this.content,
     this.mediaUrl,
+    this.type = MessageType.text,
     DateTime? timestamp,
     this.isSeen = false,
   }) : timestamp = timestamp ?? DateTime.now();
-
 
   MessageModel copyWith({
     String? conversationId,
@@ -41,16 +44,16 @@ class MessageModel {
   /// Factory constructor to create a MessageModel from JSON
   factory MessageModel.fromJson(Map<String, dynamic> json) {
     return MessageModel(
-      conversationId: json['conversation_id'] ?? 0,
-      senderId: json['sender_id'] ?? 0,
-      receiverId: json['receiver_id'] ?? 0,
+      conversationId: json['conversation_id'],
+      senderId: json['sender_id'],
+      receiverId: json['receiver_id'],
       content: json['content'],
       mediaUrl: json['media_url'],
-      timestamp: json['timestamp'] != null
-          ? (json['timestamp'] is Timestamp
-          ? (json['timestamp'] as Timestamp).toDate()
-          : DateTime.parse(json['timestamp']))
-          : DateTime.now(),
+      type: MessageType.values.firstWhere(
+            (e) => e.name == json['type'],
+        orElse: () => MessageType.text,
+      ),
+      timestamp: (json['timestamp'] as Timestamp).toDate(),
       isSeen: json['is_seen'] ?? false,
     );
   }
@@ -63,6 +66,7 @@ class MessageModel {
       'receiver_id': receiverId,
       'content': content,
       'media_url': mediaUrl,
+      'type': type.name,
       'timestamp': Timestamp.fromDate(timestamp),
       'is_seen': isSeen,
     };
