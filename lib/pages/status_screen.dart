@@ -14,7 +14,8 @@ class StatusScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(StatusController());
+    // Initialize the controller using GetX
+    final StatusController controller = Get.put(StatusController());
 
     return Scaffold(
       body: Container(
@@ -25,57 +26,292 @@ class StatusScreen extends StatelessWidget {
             end: Alignment.bottomCenter,
           ),
         ),
+
         child: Obx(() {
+
+          // Show a loading spinner while data is being fetched
           if (controller.isLoading.value) {
-            return const Center(child: CircularProgressIndicator(color: AppColor.primary));
+            return const Center(
+              child: CircularProgressIndicator(color: AppColor.primary),
+            );
           }
 
+          // Main scrollable content
           return ListView(
             children: [
               const VerticalSpacer(1),
 
-              // My Status
+              // ── My Status Section ──────────────────────────────────────
+
+              // Tapping this opens the media picker to add a new status
               GestureDetector(
                 onTap: () async {
-                  final picker = ImagePicker();
-                  final file = await picker.pickMedia();
-                  if (file != null) {
-                    await controller.addStatus(media: file);
+                  // Open the media picker
+                  final ImagePicker picker = ImagePicker();
+                  final XFile? selectedFile = await picker.pickMedia();
+
+                  // Only upload if user actually picked something
+                  if (selectedFile != null) {
+                    await controller.addStatus(media: selectedFile);
                   }
                 },
+
                 child: controller.myStatuses.isEmpty
-                    ? const OurStatusPlaceholder()
-                    : OurStatus(statuses: controller.myStatuses),
+
+                // ── No status yet: show placeholder ─────────────────────
+                    ? ListTile(
+                  leading: Stack(
+                    children: [
+                      // Grey person icon as default avatar
+                      CircleAvatar(
+                        radius: 27,
+                        backgroundColor: AppColor.white,
+                        child: const Icon(
+                          Icons.person,
+                          size: 40,
+                          color: Colors.grey,
+                        ),
+                      ),
+
+                      // Green "+" button at bottom-right of avatar
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: CircleAvatar(
+                          radius: 13,
+                          backgroundColor: AppColor.white,
+                          child: CircleAvatar(
+                            radius: 10,
+                            backgroundColor: AppColor.second,
+                            child: const Icon(
+                              Icons.add,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  title: const Text(
+                    "My Status",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: const Text(
+                    "Tap to add status update",
+                    style: TextStyle(fontSize: 13, color: Colors.grey),
+                  ),
+                )
+
+                    : ListTile(
+                  leading: Stack(
+                    children: [
+                      // Show a preview of the latest status inside the avatar
+                      CircleAvatar(
+                        radius: 27,
+                        backgroundColor: Colors.white,
+                        child: () {
+                          StatusModel latest = controller.myStatuses.first;
+
+                          // No media URL — show default person icon
+                          if (latest.mediaUrl == null || latest.mediaUrl!.isEmpty) {
+                            return const Icon(
+                              Icons.person,
+                              size: 40,
+                              color: Colors.grey,
+                            );
+                          }
+
+                          // Video status — show camera icon as preview
+                          if (latest.type == 'video') {
+                            return const Icon(
+                              Icons.videocam,
+                              size: 40,
+                              color: Colors.grey,
+                            );
+                          }
+
+                          // Image status — show the actual image
+                          return ClipOval(
+                            child: Image.network(
+                              latest.mediaUrl!,
+                              fit: BoxFit.cover,
+                              width: 54,
+                              height: 54,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(
+                                  Icons.broken_image,
+                                  size: 40,
+                                  color: Colors.grey,
+                                );
+                              },
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return const CircularProgressIndicator(
+                                  color: AppColor.primary,
+                                );
+                              },
+                            ),
+                          );
+                        }(),
+                      ),
+
+                      // Green "+" button at bottom-right of avatar
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: CircleAvatar(
+                          radius: 13,
+                          backgroundColor: Colors.white,
+                          child: CircleAvatar(
+                            radius: 10,
+                            backgroundColor: AppColor.second,
+                            child: const Icon(
+                              Icons.add,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  title: const Text(
+                    "My Status",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    "Added ${transferTimeAMPM(controller.myStatuses.first.createdAt.toDate())}",
+                    style: const TextStyle(fontSize: 13, color: Colors.grey),
+                  ),
+                  onTap: () {
+                    // Open status viewer to watch my statuses
+                    Get.to(() => StatusViewerScreen(
+                      statuses: controller.myStatuses,
+                      initialIndex: 0,
+                    ));
+                  },
+                ),
               ),
+
+              // ── Recent Updates Label ───────────────────────────────────
 
               const Padding(
                 padding: EdgeInsets.only(left: 13, bottom: 7, top: 7),
                 child: Text(
                   "Recent updates",
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
 
-              // Other users' statuses
+              // ── Friends' Statuses ──────────────────────────────────────
+
+              // Show this message when no friends have any active statuses
               if (controller.friendsStatuses.isEmpty)
                 const Center(
                   child: Padding(
                     padding: EdgeInsets.all(20),
-                    child: Text("No recent updates", style: TextStyle(color: Colors.grey)),
+                    child: Text(
+                      "No recent updates",
+                      style: TextStyle(color: Colors.grey),
+                    ),
                   ),
                 )
               else
-                ...controller.friendsStatuses.entries.map((entry) {
-                  final userId = entry.key;
-                  final data = entry.value;
+              // Loop through each friend and build a status tile for them
+                for (var entry in controller.friendsStatuses.entries)
+                      () {
+                    // Extract this friend's data from the map
+                    String userId = entry.key;
+                    List<StatusModel> statuses = entry.value['statuses'] as List<StatusModel>;
+                    String friendName = entry.value['name'] as String;
+                    String? friendPhotoUrl = entry.value['photoUrl'] as String?;
 
-                  return OtherStatusGroup(
-                    userId: userId,
-                    statuses: data['statuses'] as List<StatusModel>,
-                    name: data['name'] as String,
-                    photoUrl: data['photoUrl'] as String?,
-                  );
-                }),
+                    // Don't show tile if this friend has no statuses
+                    if (statuses.isEmpty) return const SizedBox.shrink();
+
+                    // Use the most recently posted status as the preview
+                    StatusModel latestStatus = statuses.first;
+
+                    return ListTile(
+                      leading: CircleAvatar(
+                        radius: 26,
+                        backgroundColor: Colors.white,
+
+                        // Show friend's profile photo if available
+                        backgroundImage: friendPhotoUrl != null
+                            ? NetworkImage(friendPhotoUrl)
+                            : null,
+
+                        // If no profile photo, show the status media preview
+                        child: friendPhotoUrl != null
+                            ? null
+                            : () {
+                          // No media — show person icon
+                          if (latestStatus.mediaUrl == null ||
+                              latestStatus.mediaUrl!.isEmpty) {
+                            return const Icon(
+                              Icons.person,
+                              size: 36,
+                              color: Colors.grey,
+                            );
+                          }
+
+                          // Video — show camera icon
+                          if (latestStatus.type == 'video') {
+                            return const Icon(
+                              Icons.videocam,
+                              size: 36,
+                              color: Colors.grey,
+                            );
+                          }
+
+                          // Image — show the actual image
+                          return ClipOval(
+                            child: Image.network(
+                              latestStatus.mediaUrl!,
+                              fit: BoxFit.cover,
+                              width: 52,
+                              height: 52,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(
+                                  Icons.broken_image,
+                                  size: 36,
+                                  color: Colors.grey,
+                                );
+                              },
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return const CircularProgressIndicator(
+                                  color: AppColor.primary,
+                                );
+                              },
+                            ),
+                          );
+                        }(),
+                      ),
+                      title: Text(
+                        friendName,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(
+                        "Updated ${transferTimeAMPM(latestStatus.createdAt.toDate())}",
+                        style: const TextStyle(fontSize: 13, color: Colors.grey),
+                      ),
+                      onTap: () {
+                        // Open the status viewer for this friend
+                        Get.to(() => StatusViewerScreen(
+                          statuses: statuses,
+                          initialIndex: 0,
+                        ));
+                      },
+                    );
+                  }(),
+
+              // ── Bottom Encryption Notice ───────────────────────────────
 
               const Divider(color: Colors.grey, height: 30),
 
@@ -111,211 +347,23 @@ class StatusScreen extends StatelessWidget {
           );
         }),
       ),
-      floatingActionButton: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          const SizedBox(height: 16),
-          FloatingActionButton(
-            elevation: 6,
-            onPressed: () async {
-              final picker = ImagePicker();
-              final file = await picker.pickMedia();
-              if (file != null) {
-                await Get.find<StatusController>().addStatus(media: file);
-              }
-            },
-            child: const Icon(Icons.camera_alt_rounded, color: Colors.white),
-          ),
-        ],
+
+      // ── Floating Camera Button ───────────────────────────────────────────
+
+      floatingActionButton: FloatingActionButton(
+        elevation: 6,
+        onPressed: () async {
+          // Open media picker when camera button is tapped
+          final ImagePicker picker = ImagePicker();
+          final XFile? selectedFile = await picker.pickMedia();
+
+          // Only upload if user actually picked something
+          if (selectedFile != null) {
+            await Get.find<StatusController>().addStatus(media: selectedFile);
+          }
+        },
+        child: const Icon(Icons.camera_alt_rounded, color: Colors.white),
       ),
-    );
-  }
-}
-
-// Placeholder when no status exists
-class OurStatusPlaceholder extends StatelessWidget {
-  const OurStatusPlaceholder({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: Stack(
-        children: [
-          CircleAvatar(
-            radius: 27,
-            backgroundColor: AppColor.white,
-            child: const Icon(Icons.person, size: 40, color: Colors.grey),
-          ),
-          Positioned(
-            bottom: 0,
-            right: 0,
-            child: CircleAvatar(
-              radius: 13,
-              backgroundColor: AppColor.white,
-              child: CircleAvatar(
-                radius: 10,
-                backgroundColor: AppColor.second,
-                child: const Icon(Icons.add, size: 16, color: Colors.white),
-              ),
-            ),
-          ),
-        ],
-      ),
-      title: const Text(
-        "My Status",
-        style: TextStyle(fontWeight: FontWeight.bold),
-      ),
-      subtitle: const Text(
-        "Tap to add status update",
-        style: TextStyle(fontSize: 13, color: Colors.grey),
-      ),
-    );
-  }
-}
-
-// My status (when exists)
-class OurStatus extends StatelessWidget {
-  final List<StatusModel> statuses;
-  const OurStatus({required this.statuses, super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    if (statuses.isEmpty) return const SizedBox.shrink();
-
-    final latest = statuses.first;
-
-    Widget avatarContent() {
-      if (latest.mediaUrl == null || latest.mediaUrl!.isEmpty) {
-        return const Icon(Icons.person, size: 40, color: Colors.grey);
-      }
-
-      if (latest.type == 'video') {
-        return const Icon(Icons.videocam, size: 40, color: Colors.grey);
-      }
-
-      return ClipOval(
-        child: Image.network(
-          latest.mediaUrl!,
-          fit: BoxFit.cover,
-          width: 54,
-          height: 54,
-          errorBuilder: (context, error, stackTrace) => const Icon(
-            Icons.broken_image,
-            size: 40,
-            color: Colors.grey,
-          ),
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return const CircularProgressIndicator(color: AppColor.primary);
-          },
-        ),
-      );
-    }
-
-    return ListTile(
-      leading: Stack(
-        children: [
-          CircleAvatar(
-            radius: 27,
-            backgroundColor: Colors.white,
-            child: avatarContent(),
-          ),
-          Positioned(
-            bottom: 0,
-            right: 0,
-            child: CircleAvatar(
-              radius: 13,
-              backgroundColor: Colors.white,
-              child: CircleAvatar(
-                radius: 10,
-                backgroundColor: AppColor.second,
-                child: const Icon(Icons.add, size: 16, color: Colors.white),
-              ),
-            ),
-          ),
-        ],
-      ),
-      title: const Text("My Status", style: TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: Text(
-        "Added ${transferTimeAMPM(latest.createdAt.toDate())}",
-        style: const TextStyle(fontSize: 13, color: Colors.grey),
-      ),
-      onTap: () {
-        Get.to(() => StatusViewerScreen(
-          statuses: statuses,
-          initialIndex: 0,
-        ));
-      },
-    );
-  }
-}
-
-// Group of statuses from one user (now with real name & photo)
-class OtherStatusGroup extends StatelessWidget {
-  final String userId;
-  final List<StatusModel> statuses;
-  final String name;
-  final String? photoUrl;
-
-  const OtherStatusGroup({
-    required this.userId,
-    required this.statuses,
-    required this.name,
-    this.photoUrl,
-    super.key,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (statuses.isEmpty) return const SizedBox.shrink();
-
-    final latest = statuses.first;
-
-    Widget avatarContent() {
-      if (latest.mediaUrl == null || latest.mediaUrl!.isEmpty) {
-        return const Icon(Icons.person, size: 36, color: Colors.grey);
-      }
-
-      if (latest.type == 'video') {
-        return const Icon(Icons.videocam, size: 36, color: Colors.grey);
-      }
-
-      return ClipOval(
-        child: Image.network(
-          latest.mediaUrl!,
-          fit: BoxFit.cover,
-          width: 52,
-          height: 52,
-          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 36, color: Colors.grey),
-          loadingBuilder: (context, child, loading) {
-            if (loading == null) return child;
-            return const CircularProgressIndicator(color: AppColor.primary);
-          },
-        ),
-      );
-    }
-
-    return ListTile(
-      leading: CircleAvatar(
-        radius: 26,
-        backgroundColor: Colors.white,
-        backgroundImage: photoUrl != null ? NetworkImage(photoUrl!) : null,
-        child: photoUrl == null ? avatarContent() : null,
-      ),
-      title: Text(
-        name,
-        style: const TextStyle(fontWeight: FontWeight.bold),
-      ),
-      subtitle: Text(
-        "Updated ${transferTimeAMPM(latest.createdAt.toDate())}",
-        style: const TextStyle(fontSize: 13, color: Colors.grey),
-      ),
-      onTap: () {
-        Get.to(() => StatusViewerScreen(
-          statuses: statuses,
-          initialIndex: 0,
-        ));
-      },
     );
   }
 }

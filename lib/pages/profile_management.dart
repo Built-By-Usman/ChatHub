@@ -55,37 +55,62 @@ class ProfileManagement extends StatelessWidget {
                   const SizedBox(height: 20),
 
                   /// 🔵 PROFILE IMAGE
-                  Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColor.primary.withOpacity(0.2),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        )
-                      ],
-                    ),
-                    child: GestureDetector(
-                      onTap: controller.pickAndUpdatePhoto,
-                      child: Stack(
-                        alignment: Alignment.bottomRight,
-                        children: [
-                          CircleAvatar(
-                            radius: 65,
-                            backgroundColor: Colors.grey.shade200,
-                            backgroundImage: user.photoUrl != null
-                                ? NetworkImage(user.photoUrl!)
-                                : null,
-                            child: user.photoUrl == null
-                                ? const Icon(
+                  SizedBox(
+                    width: 130,
+                    height: 130,
+                    child: Stack(
+                      children: [
+
+                        /// PROFILE IMAGE
+                        ClipOval(
+                          child: user.photoUrl != null
+                              ? Image.network(
+                            user.photoUrl!,
+                            width: 130,
+                            height: 130,
+                            fit: BoxFit.cover,
+
+                            /// 👇 shows loader
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+
+                              return Container(
+                                color: Colors.grey.shade200,
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    color: AppColor.primary,
+                                  ),
+                                ),
+                              );
+                            },
+
+                            /// 👇 fallback if error
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: Colors.grey.shade200,
+                                child: const Icon(
+                                  Icons.person,
+                                  size: 60,
+                                  color: Colors.grey,
+                                ),
+                              );
+                            },
+                          )
+                              : Container(
+                            color: Colors.grey.shade200,
+                            child: const Icon(
                               Icons.person,
                               size: 60,
                               color: Colors.grey,
-                            )
-                                : null,
+                            ),
                           ),
-                          Container(
+                        ),
+
+                        /// CAMERA ICON
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
                               color: AppColor.primary,
@@ -96,9 +121,9 @@ class ProfileManagement extends StatelessWidget {
                               size: 18,
                               color: Colors.white,
                             ),
-                          )
-                        ],
-                      ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
 

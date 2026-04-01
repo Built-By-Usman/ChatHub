@@ -1,8 +1,8 @@
 import 'dart:io';
+import 'package:ChatHub/model/user_info_model.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
@@ -11,216 +11,268 @@ import 'package:video_compress/video_compress.dart';
 import '../model/conversation_model.dart';
 import '../model/status_model.dart';
 
-class UserInfo {
-  final String name;
-  final String? photoUrl;
-
-  UserInfo({required this.name, this.photoUrl});
-}
-
 class StatusController extends GetxController {
-  // My statuses
-  final RxList<StatusModel> myStatuses = <StatusModel>[].obs;
 
-  // Friends' statuses + real user info
-  final RxMap<String, Map<String, dynamic>> friendsStatuses = <String, Map<String, dynamic>>{}.obs;
-  // Structure: { userId: { 'statuses': [...], 'name': '...', 'photoUrl': '...' } }
+  RxList<StatusModel> myStatuses = <StatusModel>[].obs;
 
-  final RxBool isLoading = false.obs;
+  RxMap<String, Map<String, dynamic>> friendsStatuses =
+      <String, Map<String, dynamic>>{}.obs;
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
+  RxBool isLoading = false.obs;
+  // ─── Firebase ─────────────────────
 
-  // Cache for user info (name + photo)
-  final RxMap<String, UserInfo> _userCache = <String, UserInfo>{}.obs;
+  final firestore = FirebaseFirestore.instance;
+  final auth = FirebaseAuth.instance;
+  final storage = FirebaseStorage.instance;
+
+  // Cache to avoid repeated user fetching
+  Map<String, UserInfoModel> userCache = {};
+
+  // ─── Start ────────────────────────
 
   @override
   void onInit() {
     super.onInit();
-    fetchMyStatuses();
-    fetchFriendsStatuses();
+    listenMyStatuses();
+    loadFriendsStatuses();
   }
 
-  // Fetch my own statuses
-  void fetchMyStatuses() {
-    final userId = _auth.currentUser?.uid;
-    if (userId == null) return;
+  // ─── My Statuses (real-time) ──────
 
-    _firestore
+  void listenMyStatuses() {
+    final uid = auth.currentUser?.uid;
+    if (uid == null) return;
+
+    firestore
         .collection('statuses')
-        .where('userId', isEqualTo: userId)
+        .where('userId', isEqualTo: uid)
         .orderBy('createdAt', descending: true)
         .snapshots()
         .listen((snapshot) {
-      final statuses = snapshot.docs
-          .map((doc) => StatusModel.fromFirestore(doc))
-          .where((s) => !s.isExpired)
-          .toList();
+      final list = <StatusModel>[];
 
-      myStatuses.assignAll(statuses);
+      for (var doc in snapshot.docs) {
+        final status = StatusModel.fromFirestore(doc);
+
+        // ignore expired statuses
+        if (!status.isExpired) {
+          list.add(status);
+        }
+      }
+
+      myStatuses.assignAll(list);
     });
   }
 
-  // Fetch statuses from conversation friends + real names/photos
-  Future<void> fetchFriendsStatuses() async {
+  // ─── Friends Statuses ─────────────
+
+  Future<void> loadFriendsStatuses() async {
     isLoading.value = true;
 
-    final userId = _auth.currentUser?.uid;
-    if (userId == null) return;
+    final uid = auth.currentUser?.uid;
+    if (uid == null) return;
 
-    // Get all friends from conversations
-    final convQueries = await Future.wait([
-      _firestore.collection('conversations').where('user1_id', isEqualTo: userId).get(),
-      _firestore.collection('conversations').where('user2_id', isEqualTo: userId).get(),
-    ]);
-
-    final friendIds = <String>{};
-    for (var snap in convQueries) {
-      for (var doc in snap.docs) {
-        final conv = ConversationModel.fromJson(doc);
-        final otherId = conv.user1Id == userId ? conv.user2Id : conv.user1Id;
-        friendIds.add(otherId);
-      }
-    }
+    // Step 1: get friends
+    final friendIds = await getFriendIds(uid);
 
     if (friendIds.isEmpty) {
       isLoading.value = false;
       return;
     }
 
-    // Fetch real user info for all friends (cached)
-    await _fetchUserInfo(friendIds.toList());
+    // Step 2: load user names/photos
+    await loadUsers(friendIds);
 
-    // Fetch statuses in batches (Firestore whereIn limit = 10)
-    final batches = _chunkList(friendIds.toList(), 10);
-    final allStatuses = <StatusModel>[];
+    // Step 3: load statuses
+    final statuses = await loadStatuses(friendIds);
+
+    // Step 4: group by user
+    friendsStatuses.assignAll(groupByUser(statuses));
+
+    isLoading.value = false;
+  }
+
+  // Get friend IDs from conversations
+  Future<List<String>> getFriendIds(String uid) async {
+    final sent = await firestore
+        .collection('conversations')
+        .where('user1_id', isEqualTo: uid)
+        .get();
+
+    final received = await firestore
+        .collection('conversations')
+        .where('user2_id', isEqualTo: uid)
+        .get();
+
+    final ids = <String>{};
+
+    for (var doc in sent.docs) {
+      final c = ConversationModel.fromJson(doc);
+      ids.add(c.user2Id);
+    }
+
+    for (var doc in received.docs) {
+      final c = ConversationModel.fromJson(doc);
+      ids.add(c.user1Id);
+    }
+
+    return ids.toList();
+  }
+
+  // Load statuses of all friends (in chunks of 10)
+  Future<List<StatusModel>> loadStatuses(List<String> userIds) async {
+    final result = <StatusModel>[];
+
+    final batches = split(userIds, 10);
 
     for (var batch in batches) {
-      final snap = await _firestore
+      final snapshot = await firestore
           .collection('statuses')
           .where('userId', whereIn: batch)
           .orderBy('createdAt', descending: true)
           .get();
 
-      allStatuses.addAll(
-        snap.docs
-            .map((doc) => StatusModel.fromFirestore(doc))
-            .where((s) => !s.isExpired),
-      );
+      for (var doc in snapshot.docs) {
+        final status = StatusModel.fromFirestore(doc);
+
+        if (!status.isExpired) {
+          result.add(status);
+        }
+      }
     }
 
-    // Group by userId + attach real name/photo
-    final grouped = <String, Map<String, dynamic>>{};
-
-    for (var status in allStatuses) {
-      final userInfo = _userCache[status.userId] ??
-          UserInfo(name: "User ${status.userId.substring(0, 6)}");
-
-      grouped.putIfAbsent(status.userId, () => {
-        'statuses': <StatusModel>[],
-        'name': userInfo.name,
-        'photoUrl': userInfo.photoUrl,
-      });
-
-      grouped[status.userId]!['statuses'].add(status);
-    }
-
-    friendsStatuses.assignAll(grouped);
-    isLoading.value = false;
+    return result;
   }
 
-  // Fetch user names & photos (cached)
-  Future<void> _fetchUserInfo(List<String> userIds) async {
-    final missingIds = userIds.where((id) => !_userCache.containsKey(id)).toList();
+  // Group statuses by user
+  Map<String, Map<String, dynamic>> groupByUser(List<StatusModel> list) {
+    final map = <String, Map<String, dynamic>>{};
 
-    if (missingIds.isEmpty) return;
+    for (var status in list) {
+      final user = userCache[status.userId] ??
+          UserInfoModel(name: "User ${status.userId.substring(0, 6)}");
 
-    final batches = _chunkList(missingIds, 10);
+      map.putIfAbsent(status.userId, () {
+        return {
+          'statuses': <StatusModel>[],
+          'name': user.name,
+          'photoUrl': user.photoUrl,
+        };
+      });
+
+      map[status.userId]!['statuses'].add(status);
+    }
+
+    return map;
+  }
+
+  // Pick media and upload status
+  Future<void> pickAndUploadMedia() async {
+    final picker = ImagePicker();
+    final file = await picker.pickMedia();
+
+    if (file != null) {
+      await addStatus(media: file);
+    }
+  }
+
+  // ─── User cache ───────────────────
+
+  Future<void> loadUsers(List<String> ids) async {
+    final missing = ids.where((id) => !userCache.containsKey(id)).toList();
+    if (missing.isEmpty) return;
+
+    final batches = split(missing, 10);
 
     for (var batch in batches) {
-      final snap = await _firestore
+      final snapshot = await firestore
           .collection('users')
           .where(FieldPath.documentId, whereIn: batch)
           .get();
 
-      for (var doc in snap.docs) {
+      for (var doc in snapshot.docs) {
         final data = doc.data();
-        _userCache[doc.id] = UserInfo(
-          name: data['name'] ?? 'Unknown User',
+
+        userCache[doc.id] = UserInfoModel(
+          name: data['name'] ?? 'Unknown',
           photoUrl: data['photoUrl'],
         );
       }
     }
   }
 
-  // Helper: Split list into chunks (for whereIn limit = 10)
-  List<List<T>> _chunkList<T>(List<T> list, int size) {
-    final chunks = <List<T>>[];
-    for (var i = 0; i < list.length; i += size) {
-      chunks.add(list.sublist(i, i + size > list.length ? list.length : i + size));
+  // Split list into small parts
+  List<List<T>> split<T>(List<T> list, int size) {
+    final result = <List<T>>[];
+
+    for (int i = 0; i < list.length; i += size) {
+      int end = i + size;
+      if (end > list.length) end = list.length;
+
+      result.add(list.sublist(i, end));
     }
-    return chunks;
+
+    return result;
   }
 
-  // Add new status (image/video) + thumbnail for video
+  // ─── Add new status ───────────────
+
   Future<void> addStatus({required XFile media, String? caption}) async {
-    final userId = _auth.currentUser?.uid;
-    if (userId == null) return;
+    final uid = auth.currentUser?.uid;
+    if (uid == null) return;
 
     try {
-      final isVideo = media.path.toLowerCase().endsWith('.mp4') ||
-          media.path.toLowerCase().endsWith('.mov');
+      final isVideo = media.path.endsWith('.mp4') ||
+          media.path.endsWith('.mov');
 
       final ext = isVideo ? '.mp4' : '.jpg';
+
       final fileName = const Uuid().v4() + ext;
-      final thumbName = const Uuid().v4() + '_thumb.jpg';
 
-      // Upload original media
-      final mediaRef = _storage.ref().child('statuses/$userId/$fileName');
-      await mediaRef.putFile(File(media.path));
-      final mediaUrl = await mediaRef.getDownloadURL();
+      // upload main file
+      final ref = storage.ref().child('statuses/$uid/$fileName');
+      await ref.putFile(File(media.path));
+      final url = await ref.getDownloadURL();
 
-      String? thumbnailUrl;
+      String? thumbUrl;
 
+      // video thumbnail
       if (isVideo) {
-        final thumbFile = await VideoCompress.getFileThumbnail(
-          media.path,
-          quality: 50,
-          position: -1,
-        );
+        final thumb = await VideoCompress.getFileThumbnail(media.path);
 
-        if (thumbFile != null) {
-          final thumbRef = _storage.ref().child('statuses/$userId/$thumbName');
-          await thumbRef.putFile(thumbFile);
-          thumbnailUrl = await thumbRef.getDownloadURL();
-          await thumbFile.delete();
-        }
-      }
+        final thumbRef = storage.ref().child(
+            'statuses/$uid/${const Uuid().v4()}_thumb.jpg');
+
+        await thumbRef.putFile(thumb);
+        thumbUrl = await thumbRef.getDownloadURL();
+
+        await thumb.delete();
+            }
 
       final now = Timestamp.now();
-      final expires = Timestamp.fromDate(now.toDate().add(const Duration(hours: 24)));
 
       final status = StatusModel(
         id: const Uuid().v4(),
-        userId: userId,
-        mediaUrl: mediaUrl,
+        userId: uid,
+        mediaUrl: url,
         type: isVideo ? 'video' : 'image',
         caption: caption,
-        thumbnailUrl: thumbnailUrl,
+        thumbnailUrl: thumbUrl,
         createdAt: now,
-        expiresAt: expires,
+        expiresAt: Timestamp.fromDate(
+          now.toDate().add(const Duration(hours: 24)),
+        ),
       );
 
-      await _firestore.collection('statuses').doc(status.id).set(status.toFirestore());
+      await firestore.collection('statuses').doc(status.id).set(
+        status.toFirestore(),
+      );
 
-      // Instantly add to my list for better UX
       myStatuses.insert(0, status);
 
-      Get.snackbar("Success", "Status added");
+      Get.snackbar("Success", "Status uploaded");
     } catch (e) {
-      Get.snackbar("Error", "Failed to add status: $e");
-      print("Status upload error: $e");
+      Get.snackbar("Error", "Upload failed");
     }
   }
 }
