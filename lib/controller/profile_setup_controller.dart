@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image/image.dart' as img;
 import 'package:ChatHub/core/constant/app_route.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -11,20 +12,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/functions/my_snackbar.dart';
 
-class ProfileSetupController extends GetxController{
+class ProfileSetupController extends GetxController {
   final nameController = TextEditingController();
-  var name=''.obs;
-  var isLoading= false.obs;
+  var name = ''.obs;
+  var isLoading = false.obs;
   var imageFile = Rx<File?>(null);
 
-  RxString currentName=''.obs;
-  RxString currentProfileUrl=''.obs;
+  RxString currentName = ''.obs;
+  RxString currentProfileUrl = ''.obs;
 
   final picker = ImagePicker();
   final FirebaseFirestore db = FirebaseFirestore.instance;
   final FirebaseAuth auth = FirebaseAuth.instance;
-
-
 
   Future<void> pickImage() async {
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
@@ -40,12 +39,13 @@ class ProfileSetupController extends GetxController{
       img.Image? image = img.decodeImage(file.readAsBytesSync());
       if (image == null) return;
 
-      // Resize if file is larger than 3 MB
-      if (file.lengthSync() > 1.5 * 1024 * 1024) {
-        image = img.copyResize(image, width: 800); // reduce width, height scales automatically
+      // Resize very large images to a web-friendly size first.
+      if (image.width > 1024 || image.height > 1024) {
+        image = img.copyResize(image, width: 1024);
       }
 
-      final compressedBytes = img.encodeJpg(image, quality: 85); // 85% quality
+      // Compress the result before upload to speed profile picture storage and download.
+      final compressedBytes = img.encodeJpg(image, quality: 80);
 
       // Overwrite original file with compressed version
       final compressedFile = File(file.path)..writeAsBytesSync(compressedBytes);
@@ -53,8 +53,6 @@ class ProfileSetupController extends GetxController{
       imageFile.value = compressedFile;
     }
   }
-
-
 
   Future<void> saveProfile() async {
     if (name.value.isEmpty) {
@@ -75,9 +73,9 @@ class ProfileSetupController extends GetxController{
 
       /// Upload new image if selected
       if (imageFile.value != null) {
-        final storageRef = FirebaseStorage.instance
-            .ref()
-            .child('profile_pictures/${user.uid}.jpg');
+        final storageRef = FirebaseStorage.instance.ref().child(
+          'profile_pictures/${user.uid}.jpg',
+        );
 
         await storageRef.putFile(imageFile.value!);
         photoUrl = await storageRef.getDownloadURL();
@@ -96,7 +94,6 @@ class ProfileSetupController extends GetxController{
 
       preferences.setBool('is_logged_in', true);
 
-
       // FirebaseMessaging.instance.getToken().then((token) {
       //   if (token != null) {
       //     FirebaseFirestore.instance
@@ -107,26 +104,32 @@ class ProfileSetupController extends GetxController{
       // });
 
       Get.offAllNamed(AppRoute.home);
-
     } catch (e) {
       MySnackBar.showSnackBar('Error', e.toString());
     } finally {
       isLoading.value = false;
     }
   }
-@override
+
+  @override
   void onInit() {
     fetchUserData();
     super.onInit();
   }
-  Future<void> fetchUserData()async{
-    var user=await db.collection('users').doc(auth.currentUser!.uid).get();
-    if(user.exists){
-      currentName.value = user['name']??'';
-      currentProfileUrl.value = user['photo_url']??'';
-      nameController.text=currentName.value;
-      name.value=currentName.value;
-    }
 
+  Future<void> fetchUserData() async {
+    var user = await db.collection('users').doc(auth.currentUser!.uid).get();
+    if (user.exists) {
+      currentName.value = user['name'] ?? '';
+      currentProfileUrl.value = user['photo_url'] ?? '';
+      nameController.text = currentName.value;
+      name.value = currentName.value;
+
+      if (currentProfileUrl.value.isNotEmpty) {
+        CachedNetworkImageProvider(
+          currentProfileUrl.value,
+        ).resolve(const ImageConfiguration());
+      }
+    }
   }
 }

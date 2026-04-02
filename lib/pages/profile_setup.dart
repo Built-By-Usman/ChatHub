@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controller/profile_setup_controller.dart';
@@ -61,23 +62,67 @@ class ProfileSetup extends StatelessWidget {
                             ),
                           ],
                         ),
-                        child: Obx(()=>CircleAvatar(
-                          radius: 65,
-                          backgroundColor: AppColor.second,
-                          backgroundImage: controller.imageFile.value != null
-                              ? FileImage(controller.imageFile.value!)
-                              : controller.currentProfileUrl.value.isNotEmpty
-                              ? NetworkImage(controller.currentProfileUrl.value)
-                              : null,
-                          child: controller.imageFile.value == null&&controller.currentProfileUrl.value==''
-                              ? Icon(
-                            Icons.person,
-                            size: 70,
-                            color: AppColor.white,
-                          )
-                              : null,
-                        )
-                        ),
+                        child: Obx(() {
+                          if (controller.imageFile.value != null) {
+                            return CircleAvatar(
+                              radius: 65,
+                              backgroundColor: AppColor.second,
+                              backgroundImage: FileImage(
+                                controller.imageFile.value!,
+                              ),
+                            );
+                          }
+
+                          if (controller.currentProfileUrl.value.isNotEmpty) {
+                            return CachedNetworkImage(
+                              imageUrl: controller.currentProfileUrl.value,
+                              imageBuilder: (context, imageProvider) =>
+                                  CircleAvatar(
+                                    radius: 65,
+                                    backgroundColor: AppColor.second,
+                                    backgroundImage: imageProvider,
+                                  ),
+                              placeholder: (context, url) => CircleAvatar(
+                                radius: 65,
+                                backgroundColor: AppColor.second,
+                                child: Center(
+                                  child: SizedBox(
+                                    width: 32,
+                                    height: 32,
+                                    child: CircularProgressIndicator(
+                                      color: AppColor.white,
+                                      strokeWidth: 2.5,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              errorWidget: (context, url, error) =>
+                                  CircleAvatar(
+                                    radius: 65,
+                                    backgroundColor: AppColor.second,
+                                    child: Icon(
+                                      Icons.person,
+                                      size: 70,
+                                      color: AppColor.white,
+                                    ),
+                                  ),
+                              fadeInDuration: const Duration(milliseconds: 250),
+                              fadeOutDuration: const Duration(
+                                milliseconds: 200,
+                              ),
+                            );
+                          }
+
+                          return CircleAvatar(
+                            radius: 65,
+                            backgroundColor: AppColor.second,
+                            child: Icon(
+                              Icons.person,
+                              size: 70,
+                              color: AppColor.white,
+                            ),
+                          );
+                        }),
                       ),
                       GestureDetector(
                         onTap: controller.pickImage,
@@ -103,37 +148,40 @@ class ProfileSetup extends StatelessWidget {
                   const SizedBox(height: 50),
 
                   /// Name Field
-                  Obx(()=>TextField(
-                    cursorColor: AppColor.primary,
-                    controller: controller.currentName.value!=''?
-                    controller.nameController:null,
-                    decoration: InputDecoration(
-                      hint: Text(
-                        controller.currentName.value != ''
-                            ? controller.currentName.value
-                            : 'Your Name',
-                        style: TextStyle(color: AppColor.primary),
-                      ),
-                      labelStyle: TextStyle(color: AppColor.primary),
-                      filled: true,
-                      fillColor: AppColor.white,
-                      prefixIcon: Icon(Icons.person, color: AppColor.primary),
+                  Obx(
+                    () => TextField(
+                      cursorColor: AppColor.primary,
+                      controller: controller.currentName.value != ''
+                          ? controller.nameController
+                          : null,
+                      decoration: InputDecoration(
+                        hint: Text(
+                          controller.currentName.value != ''
+                              ? controller.currentName.value
+                              : 'Your Name',
+                          style: TextStyle(color: AppColor.primary),
+                        ),
+                        labelStyle: TextStyle(color: AppColor.primary),
+                        filled: true,
+                        fillColor: AppColor.white,
+                        prefixIcon: Icon(Icons.person, color: AppColor.primary),
 
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide.none,
-                      ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none,
+                        ),
 
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide(
-                          color: AppColor.primary,
-                          width: 2,
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(
+                            color: AppColor.primary,
+                            width: 2,
+                          ),
                         ),
                       ),
+                      onChanged: (val) => controller.name.value = val,
                     ),
-                    onChanged: (val) => controller.name.value = val,
-                  )),
+                  ),
 
                   const Spacer(),
 

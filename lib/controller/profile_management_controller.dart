@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -41,6 +42,13 @@ class ProfileManagementController extends GetxController {
         currentUser.value = UserModel.fromJson(doc.data()!);
         nameController.text = currentUser.value?.name ?? '';
         aboutController.text = currentUser.value?.about ?? '';
+
+        final photoUrl = currentUser.value?.photoUrl;
+        if (photoUrl != null && photoUrl.isNotEmpty) {
+          CachedNetworkImageProvider(
+            photoUrl,
+          ).resolve(const ImageConfiguration());
+        }
       } else {
         Get.snackbar("Error", "User profile not found");
       }

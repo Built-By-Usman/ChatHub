@@ -14,9 +14,7 @@ class ChatScreenController extends GetxController {
   void goToDetailScreen(ChatModel chat) {
     Get.toNamed(
       AppRoute.chatDetail,
-      arguments: {
-        "conversation": chat.conversation,
-      },
+      arguments: {"conversation": chat.conversation},
     );
   }
 
@@ -29,6 +27,7 @@ class ChatScreenController extends GetxController {
     super.onInit();
     fetchConversations();
   }
+
   final List<String> popMenuItems = [
     "New group",
     "New boradcast",
@@ -39,7 +38,6 @@ class ChatScreenController extends GetxController {
 
   // Selected pop-up menu
   String popUpMenu = "New group";
-
 
   // Update selected menu
   void selectPopMenu(String? value) {
@@ -64,51 +62,52 @@ class ChatScreenController extends GetxController {
           .orderBy('last_message_time', descending: true)
           .snapshots()
           .listen((snapshot) async {
-        List<ChatModel> tempList = [];
+            List<ChatModel> tempList = [];
 
-        for (var doc in snapshot.docs) {
-          final conversation = ConversationModel.fromJson(doc);
+            for (var doc in snapshot.docs) {
+              final conversation = ConversationModel.fromJson(doc);
 
-          // Skip conversations that don't include current user
-          if (conversation.user1Id != currentUserId &&
-              conversation.user2Id != currentUserId) {
-            continue;
-          }
+              // Skip conversations that don't include current user
+              if (conversation.user1Id != currentUserId &&
+                  conversation.user2Id != currentUserId) {
+                continue;
+              }
 
-          // Get the other user's ID
-          final otherUserId = conversation.user1Id == currentUserId
-              ? conversation.user2Id
-              : conversation.user1Id;
+              // Get the other user's ID
+              final otherUserId = conversation.user1Id == currentUserId
+                  ? conversation.user2Id
+                  : conversation.user1Id;
 
-          // Fetch other user data
-          final userDoc = await FirebaseFirestore.instance
-              .collection('users')
-              .doc(otherUserId)
-              .get();
+              // Fetch other user data
+              final userDoc = await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(otherUserId)
+                  .get();
 
-          if (!userDoc.exists) continue;
+              if (!userDoc.exists) continue;
 
-          final userData = userDoc.data() as Map<String, dynamic>;
+              final userData = userDoc.data() as Map<String, dynamic>;
 
-          tempList.add(
-            ChatModel(
-              otherUserId: otherUserId,
-              name: userData['name'] ?? "Unknown",
-              profilePicture: userData['photo_url'],
-              lastMessage: conversation.lastMessage ?? "",
-              lastMessageTime: conversation.lastMessageTime ?? DateTime.now(),
-              isSeen: conversation.isSeen ?? false,
-              conversation: conversation,
-            ),
-          );
-        }
+              tempList.add(
+                ChatModel(
+                  otherUserId: otherUserId,
+                  name: userData['name'] ?? "Unknown",
+                  profilePicture: userData['photo_url'],
+                  lastMessage: conversation.lastMessage ?? "",
+                  lastMessageTime:
+                      conversation.lastMessageTime ?? DateTime.now(),
+                  isSeen: conversation.isSeen ?? false,
+                  conversation: conversation,
+                ),
+              );
+            }
 
-        // No need to sort again — Firestore already gave us newest first
-        // tempList.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+            // No need to sort again — Firestore already gave us newest first
+            // tempList.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
 
-        chats.value = tempList;
-        isLoading.value = false;
-      });
+            chats.value = tempList;
+            isLoading.value = false;
+          });
     } catch (e) {
       print("Error fetching conversations real-time: $e");
       isLoading.value = false;

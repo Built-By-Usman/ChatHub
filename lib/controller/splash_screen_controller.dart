@@ -3,7 +3,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/constant/app_route.dart';
 
-
 class SplashScreenController extends GetxController {
   @override
   void onInit() {
@@ -13,7 +12,7 @@ class SplashScreenController extends GetxController {
 
   Future<void> checkLogin() async {
     SharedPreferences preferences = await SharedPreferences.getInstance();
-    // preferences.clear();
+    preferences.clear();
 
     bool isLoggedIn = preferences.getBool('is_logged_in') ?? false;
     if (isLoggedIn) {

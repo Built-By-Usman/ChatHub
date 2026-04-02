@@ -39,10 +39,6 @@ class ChatScreen extends StatelessWidget {
                     Row(
                       children: [
                         IconButton(
-                          onPressed: () => controller.goToCameraScreen(),
-                          icon: const Icon(Icons.camera_alt_rounded),
-                        ),
-                        IconButton(
                           onPressed: () {},
                           icon: const Icon(Icons.search),
                         ),
@@ -72,7 +68,9 @@ class ChatScreen extends StatelessWidget {
                   if (controller.isLoading.value) {
                     return Expanded(
                       child: Center(
-                        child: CircularProgressIndicator(color: AppColor.primary),
+                        child: CircularProgressIndicator(
+                          color: AppColor.primary,
+                        ),
                       ),
                     );
                   }
@@ -86,14 +84,18 @@ class ChatScreen extends StatelessWidget {
                         return CustomChatCard(
                           chatModel: chat,
                           onTap: () => controller.goToDetailScreen(chat),
-                          profileWidget: chat.profilePicture != null &&
-                              chat.profilePicture!.isNotEmpty
+                          profileWidget:
+                              chat.profilePicture != null &&
+                                  chat.profilePicture!.isNotEmpty
                               ? CircleAvatar(
-                            radius: 25,
-                            backgroundImage: NetworkImage(chat.profilePicture!),
-                          )
+                                  radius: 25,
+                                  backgroundImage: NetworkImage(
+                                    chat.profilePicture!,
+                                  ),
+                                )
                               : null,
-                        );                      },
+                        );
+                      },
                     ),
                   );
                 }),
