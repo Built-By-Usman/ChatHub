@@ -10,38 +10,53 @@ class MessageInput extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = Get.find<ChatDetailScreenController>();
 
-    return TextFormField(
-      controller: controller.messageController,
-      focusNode: controller.focusNode,
-      minLines: 1,
-      maxLines: 5,
-      onChanged: controller.changeInput,
-      decoration: InputDecoration(
-        filled: true,
-        fillColor: AppColor.white,
-        hintText: "Type a message",
-        hintStyle: const TextStyle(fontSize: 13),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(25),
-          borderSide: BorderSide.none,
-        ),
-        prefixIcon: IconButton(
-          icon: const Icon(Icons.emoji_emotions),
+    return Row(
+      children: [
+        IconButton(
+          icon: const Icon(Icons.emoji_emotions_outlined, size: 22),
+          color: AppColor.blueGrey.withValues(alpha: 0.6),
           onPressed: controller.toggleEmoji,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
         ),
-        suffixIcon: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Camera icon now opens gallery for image/video
-            IconButton(
-              icon: const Icon(Icons.camera_alt),
-              onPressed: () {
-                controller.pickAndSendMedia();
-              },
+        Expanded(
+          child: TextFormField(
+            controller: controller.messageController,
+            focusNode: controller.focusNode,
+            minLines: 1,
+            maxLines: 5,
+            onChanged: controller.changeInput,
+            style: const TextStyle(fontSize: 15, color: AppColor.black),
+            decoration: InputDecoration(
+              hintText: "Type a message...",
+              hintStyle: TextStyle(
+                fontSize: 15,
+                color: AppColor.blueGrey.withValues(alpha: 0.4),
+              ),
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              fillColor: Colors.transparent,
+              filled: false,
             ),
-          ],
+          ),
         ),
-      ),
+        IconButton(
+          icon: const Icon(Icons.attach_file_rounded, size: 22),
+          color: AppColor.blueGrey.withValues(alpha: 0.6),
+          onPressed: () {},
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+        ),
+        IconButton(
+          icon: const Icon(Icons.camera_alt_outlined, size: 22),
+          color: AppColor.blueGrey.withValues(alpha: 0.6),
+          onPressed: () => controller.pickAndSendMedia(),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+        ),
+      ],
     );
   }
 }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:get/get_core/src/get_main.dart';
-import 'package:get/get_navigation/src/extension_navigation.dart';
+import 'package:get/get.dart';
 import 'package:video_player/video_player.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../core/constant/app_color.dart';
@@ -41,43 +40,85 @@ class _StatusViewerScreenState extends State<StatusViewerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: GestureDetector(
-        onTapDown: (details) {
-          final width = MediaQuery.of(context).size.width;
-          if (details.globalPosition.dx < width / 2) {
-            // Tap left → previous
-            if (_currentIndex > 0) {
-              _pageController.previousPage(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-              );
-            }
-          } else {
-            // Tap right → next
-            if (_currentIndex < widget.statuses.length - 1) {
-              _pageController.nextPage(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-              );
-            } else {
-              Get.back(); // Last status → close
-            }
-          }
-        },
-        child: PageView.builder(
-          controller: _pageController,
-          itemCount: widget.statuses.length,
-          onPageChanged: (index) => setState(() => _currentIndex = index),
-          itemBuilder: (context, index) {
-            final status = widget.statuses[index];
+      body: Stack(
+        children: [
+          /// ─── Page Content ────────────────────────────────
+          GestureDetector(
+            onTapDown: (details) {
+              final width = MediaQuery.of(context).size.width;
+              if (details.globalPosition.dx < width / 2) {
+                if (_currentIndex > 0) {
+                  _pageController.previousPage(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                  );
+                }
+              } else {
+                if (_currentIndex < widget.statuses.length - 1) {
+                  _pageController.nextPage(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                  );
+                } else {
+                  Get.back();
+                }
+              }
+            },
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: widget.statuses.length,
+              onPageChanged: (index) => setState(() => _currentIndex = index),
+              itemBuilder: (context, index) {
+                final status = widget.statuses[index];
+                if (status.type == 'video') {
+                  return VideoStatusPlayer(url: status.mediaUrl!);
+                } else {
+                  return ImageStatusViewer(url: status.mediaUrl!);
+                }
+              },
+            ),
+          ),
 
-            if (status.type == 'video') {
-              return VideoStatusPlayer(url: status.mediaUrl!);
-            } else {
-              return ImageStatusViewer(url: status.mediaUrl!);
-            }
-          },
-        ),
+          /// ─── Progress Bars ───────────────────────────────
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 8,
+            left: 12,
+            right: 12,
+            child: Row(
+              children: List.generate(widget.statuses.length, (index) {
+                return Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                    height: 3,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(2),
+                      color: index <= _currentIndex
+                          ? Colors.white
+                          : Colors.white.withValues(alpha: 0.3),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+
+          /// ─── Close Button ────────────────────────────────
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 20,
+            right: 12,
+            child: GestureDetector(
+              onTap: () => Get.back(),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -93,7 +134,9 @@ class ImageStatusViewer extends StatelessWidget {
       child: CachedNetworkImage(
         imageUrl: url,
         fit: BoxFit.contain,
-        placeholder: (context, url) => const Center(child: CircularProgressIndicator(color: AppColor.primary)),
+        placeholder: (context, url) => const Center(
+          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+        ),
         errorWidget: (context, url, error) => const Icon(Icons.error, color: Colors.white),
       ),
     );
@@ -105,7 +148,7 @@ class VideoStatusPlayer extends StatefulWidget {
   const VideoStatusPlayer({required this.url, super.key});
 
   @override
-  _VideoStatusPlayerState createState() => _VideoStatusPlayerState();
+  State<VideoStatusPlayer> createState() => _VideoStatusPlayerState();
 }
 
 class _VideoStatusPlayerState extends State<VideoStatusPlayer> {
@@ -116,7 +159,7 @@ class _VideoStatusPlayerState extends State<VideoStatusPlayer> {
     super.initState();
     _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
       ..initialize().then((_) {
-        setState(() {});
+        if (mounted) setState(() {});
         _controller.play();
         _controller.setLooping(true);
       });
@@ -133,10 +176,10 @@ class _VideoStatusPlayerState extends State<VideoStatusPlayer> {
     return Center(
       child: _controller.value.isInitialized
           ? AspectRatio(
-        aspectRatio: _controller.value.aspectRatio,
-        child: VideoPlayer(_controller),
-      )
-          : const CircularProgressIndicator(color: Colors.white),
+              aspectRatio: _controller.value.aspectRatio,
+              child: VideoPlayer(_controller),
+            )
+          : const CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
     );
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
@@ -13,90 +14,91 @@ class HomeScreen extends StatelessWidget {
     final HomeScreenController controller = Get.put(HomeScreenController());
 
     return Scaffold(
-      // ----------------- Bottom Navigation -----------------
+      backgroundColor: AppColor.scaffoldBg,
+
+      /// ─── Frosted Glass Bottom Nav ──────────────────────
       bottomNavigationBar: Obx(() => Container(
         decoration: BoxDecoration(
-          color: AppColor.white,
+          color: Colors.white.withValues(alpha: 0.92),
           boxShadow: [
             BoxShadow(
-              color: Colors.black12,
-              blurRadius: 6,
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 20,
+              offset: const Offset(0, -4),
             ),
           ],
         ),
-         child: SalomonBottomBar(
-            currentIndex: controller.selectedIndex.value,
-            onTap: controller.changeTab,
-            selectedItemColor: AppColor.primary,
-            unselectedItemColor: Colors.grey.shade600,
-
-            items: [
-
-              /// Chats
-              SalomonBottomBarItem(
-                icon: SvgPicture.asset(
-                  controller.selectedIndex.value == 0
-                      ? "assets/images/icons/chat_filled.svg"
-                      : "assets/images/icons/chat.svg",
-                  width: 24,
-                  height: 24,
-                  colorFilter: ColorFilter.mode(
-                    controller.selectedIndex.value == 0
-                        ? AppColor.primary
-                        : Colors.grey.shade600,
-                    BlendMode.srcIn,
-                  ),
+        child: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: SalomonBottomBar(
+                  currentIndex: controller.selectedIndex.value,
+                  onTap: controller.changeTab,
+                  selectedItemColor: AppColor.primary,
+                  unselectedItemColor: Colors.grey.shade500,
+                  itemPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  items: [
+                    _buildNavItem(
+                      controller: controller,
+                      index: 0,
+                      filledIcon: "assets/images/icons/chat_filled.svg",
+                      outlineIcon: "assets/images/icons/chat.svg",
+                      label: "Chats",
+                    ),
+                    _buildNavItem(
+                      controller: controller,
+                      index: 1,
+                      filledIcon: "assets/images/icons/status_filled.svg",
+                      outlineIcon: "assets/images/icons/status.svg",
+                      label: "Status",
+                    ),
+                    _buildNavItem(
+                      controller: controller,
+                      index: 2,
+                      filledIcon: "assets/images/icons/profile_filled.svg",
+                      outlineIcon: "assets/images/icons/profile.svg",
+                      label: "Profile",
+                    ),
+                  ],
                 ),
-                title: const Text("Chats"),
-                selectedColor: AppColor.primary,
               ),
+            ),
+          ),
+        ),
+      )),
 
-              /// Status
-              SalomonBottomBarItem(
-                icon: SvgPicture.asset(
-                  controller.selectedIndex.value == 1
-                      ? "assets/images/icons/status_filled.svg"
-                      : "assets/images/icons/status.svg",
-                  width: 24,
-                  height: 24,
-                  colorFilter: ColorFilter.mode(
-                    controller.selectedIndex.value == 1
-                        ? AppColor.primary
-                        : Colors.grey.shade600,
-                    BlendMode.srcIn,
-                  ),
-                ),
-                title: const Text("Status"),
-                selectedColor: AppColor.primary,
-              ),
+      /// ─── Body with IndexedStack for performance ────────
+      body: Obx(() => IndexedStack(
+        index: controller.selectedIndex.value,
+        children: controller.bottomBarViews,
+      )),
+    );
+  }
 
-              /// Profile
-              SalomonBottomBarItem(
-                icon: SvgPicture.asset(
-                  controller.selectedIndex.value == 2
-                      ? "assets/images/icons/profile_filled.svg"
-                      : "assets/images/icons/profile.svg",
-                  width: 24,
-                  height: 24,
-                  colorFilter: ColorFilter.mode(
-                    controller.selectedIndex.value == 2
-                        ? AppColor.primary
-                        : Colors.grey.shade600,
-                    BlendMode.srcIn,
-                  ),
-                ),
-                title: const Text("Profile"),
-                selectedColor: AppColor.primary,
-              ),
-            ],
-          )
-      )
+  SalomonBottomBarItem _buildNavItem({
+    required HomeScreenController controller,
+    required int index,
+    required String filledIcon,
+    required String outlineIcon,
+    required String label,
+  }) {
+    final isSelected = controller.selectedIndex.value == index;
+    return SalomonBottomBarItem(
+      icon: SvgPicture.asset(
+        isSelected ? filledIcon : outlineIcon,
+        width: 24,
+        height: 24,
+        colorFilter: ColorFilter.mode(
+          isSelected ? AppColor.primary : Colors.grey.shade500,
+          BlendMode.srcIn,
+        ),
       ),
-
-      // ----------------- Body -----------------
-      body:Obx(()=>controller.bottomBarViews[controller.selectedIndex.value])
-
-
+      title: Text(label),
+      selectedColor: AppColor.primary,
     );
   }
 }

@@ -23,9 +23,10 @@ class MessageChat extends StatelessWidget {
   Widget build(BuildContext context) {
     final timestamp = transferTimeAMPM(messageModel.timestamp);
     final screenWidth = AppSize.screenWidth ?? MediaQuery.of(context).size.width;
+    final minBubbleWidth = screenWidth * 0.20;
 
-    // Common timestamp + seen ticks
-    Widget timestampRow({bool onMedia = false}) {
+    // Common timestamp + seen ticks widget
+    Widget timestampWidget(bool isMedia) {
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -33,24 +34,16 @@ class MessageChat extends StatelessWidget {
             timestamp,
             style: TextStyle(
               fontSize: 10,
+              color: isMedia ? Colors.white.withOpacity(0.9) : AppColor.blueGrey.withOpacity(0.8),
               fontWeight: FontWeight.w500,
-              color: onMedia
-                  ? Colors.white.withValues(alpha: 0.9)
-                  : (isSender
-                      ? Colors.white.withValues(alpha: 0.7)
-                      : AppColor.blueGrey.withValues(alpha: 0.6)),
             ),
           ),
           if (isSender) ...[
             const SizedBox(width: 4),
             Icon(
-              Icons.done_all_rounded,
+              messageModel.isSeen ? Icons.done_all : Icons.done_all,
               size: 14,
-              color: messageModel.isSeen
-                  ? (onMedia || isSender ? Colors.white : const Color(0xFF4FC3F7))
-                  : (onMedia
-                      ? Colors.white.withValues(alpha: 0.5)
-                      : Colors.grey.shade400),
+              color: messageModel.isSeen ? Colors.blue : Colors.grey.shade400,
             ),
           ],
         ],
@@ -58,13 +51,27 @@ class MessageChat extends StatelessWidget {
     }
 
     return RepaintBoundary(
-      child: _buildBubble(context, screenWidth, timestampRow),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.0, end: 1.0),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+        builder: (context, value, child) {
+          return Opacity(
+            opacity: value,
+            child: Transform.translate(
+              offset: Offset(isSender ? (10 * (1 - value)) : (-10 * (1 - value)), 0),
+              child: child,
+            ),
+          );
+        },
+        child: _buildBubble(context, screenWidth, minBubbleWidth, timestampWidget),
+      ),
     );
   }
 
-  Widget _buildBubble(BuildContext context, double screenWidth, Widget Function({bool onMedia}) timestampRow) {
+  Widget _buildBubble(BuildContext context, double screenWidth, double minBubbleWidth, Widget Function(bool) timestampWidget) {
     // ────────────────────────────────────────────────
-    //               IMAGE / VIDEO
+    //               IMAGE / VIDEO MESSAGE
     // ────────────────────────────────────────────────
     if (messageModel.type == MessageType.image || messageModel.type == MessageType.video) {
       final isVideo = messageModel.type == MessageType.video;
@@ -72,15 +79,17 @@ class MessageChat extends StatelessWidget {
       return Align(
         alignment: isSender ? Alignment.centerRight : Alignment.centerLeft,
         child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-          constraints: BoxConstraints(maxWidth: screenWidth * 0.72),
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          constraints: BoxConstraints(
+            maxWidth: screenWidth * 0.72,
+          ),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
+                color: Colors.black.withOpacity(0.12),
                 blurRadius: 12,
-                offset: const Offset(0, 4),
+                offset: const Offset(0, 6),
               ),
             ],
           ),
@@ -101,14 +110,11 @@ class MessageChat extends StatelessWidget {
                     child: isVideo
                         ? Container(
                             color: Colors.black87,
-                            child: Center(
-                              child: Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.2),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 40),
+                            child: const Center(
+                              child: Icon(
+                                Icons.play_circle_fill_rounded,
+                                color: Colors.white,
+                                size: 64,
                               ),
                             ),
                           )
@@ -118,10 +124,8 @@ class MessageChat extends StatelessWidget {
                             loadingBuilder: (context, child, loadingProgress) {
                               if (loadingProgress == null) return child;
                               return Container(
-                                color: AppColor.shimmerBase,
-                                child: const Center(
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColor.primary),
-                                ),
+                                color: Colors.grey.shade200,
+                                child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
                               );
                             },
                           ),
@@ -133,10 +137,10 @@ class MessageChat extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.45),
+                      color: Colors.black.withOpacity(0.5),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: timestampRow(onMedia: true),
+                    child: timestampWidget(true),
                   ),
                 ),
               ],
@@ -156,7 +160,9 @@ class MessageChat extends StatelessWidget {
         alignment: isSender ? Alignment.centerRight : Alignment.centerLeft,
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          constraints: BoxConstraints(maxWidth: screenWidth * 0.75),
+          constraints: BoxConstraints(
+            maxWidth: screenWidth * 0.75,
+          ),
           child: VisibilityDetector(
             key: ValueKey('voice_${messageModel.mediaUrl}'),
             onVisibilityChanged: (VisibilityInfo info) {
@@ -167,7 +173,7 @@ class MessageChat extends StatelessWidget {
             child: VoiceMessageBubble(
               url: messageModel.mediaUrl!,
               isSender: isSender,
-              timestampWidget: timestampRow(),
+              timestampWidget: timestampWidget(false),
             ),
           ),
         ),
@@ -180,39 +186,36 @@ class MessageChat extends StatelessWidget {
     return Align(
       alignment: isSender ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         constraints: BoxConstraints(
-          minWidth: screenWidth * 0.15,
+          minWidth: minBubbleWidth,
           maxWidth: screenWidth * 0.75,
         ),
         decoration: BoxDecoration(
-          gradient: isSender
-              ? const LinearGradient(
-                  colors: [AppColor.sentBubbleStart, AppColor.sentBubbleEnd],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : null,
-          color: isSender ? null : AppColor.receivedBubble,
+          gradient: isSender 
+            ? LinearGradient(
+                colors: [AppColor.primary, AppColor.second],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : null,
+          color: isSender ? null : Colors.white,
           borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(20),
-            topRight: const Radius.circular(20),
-            bottomLeft: Radius.circular(isSender ? 20 : 4),
-            bottomRight: Radius.circular(isSender ? 4 : 20),
+            topLeft: const Radius.circular(22),
+            topRight: const Radius.circular(22),
+            bottomLeft: Radius.circular(isSender ? 22 : 4),
+            bottomRight: Radius.circular(isSender ? 4 : 22),
           ),
-          border: isSender
-              ? null
-              : Border.all(color: AppColor.dividerLight, width: 1),
           boxShadow: [
             BoxShadow(
-              color: (isSender ? AppColor.primary : Colors.black).withValues(alpha: 0.06),
+              color: (isSender ? AppColor.primary : Colors.black).withOpacity(0.08),
               blurRadius: 6,
-              offset: const Offset(0, 2),
+              offset: const Offset(0, 3),
             ),
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             mainAxisSize: MainAxisSize.min,
@@ -221,12 +224,13 @@ class MessageChat extends StatelessWidget {
                 messageModel.content ?? "",
                 style: TextStyle(
                   fontSize: 15.5,
-                  height: 1.4,
-                  color: isSender ? Colors.white : AppColor.black.withValues(alpha: 0.88),
+                  height: 1.45,
+                  color: isSender ? Colors.white : AppColor.black.withOpacity(0.9),
+                  fontWeight: FontWeight.w400,
                 ),
               ),
-              const SizedBox(height: 4),
-              timestampRow(),
+              const SizedBox(height: 6),
+              timestampWidget(false),
             ],
           ),
         ),
